@@ -1,66 +1,103 @@
 package ru.kata.spring.boot_security.demo.services;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import ru.kata.spring.boot_security.demo.entities.Role;
 import ru.kata.spring.boot_security.demo.entities.User;
 import ru.kata.spring.boot_security.demo.repositiries.UserRepository;
 
-import javax.transaction.Transactional;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
-@Transactional
+@Transactional(readOnly = true)
 public class UserServiceImp implements UserService {
 
-    private final UserRepository userRepository;
+    private UserRepository userRepository;
 
     @Autowired
-    public UserServiceImp(UserRepository userDao) {
-        this.userRepository = userDao;
+    public void setUserRepository(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+
+    @Override
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
     }
 
     @Override
-    public User add(User user) {
-        return userRepository.save(user);
+    public User getUserById(Long id) {
+        Optional<User> userBuId = userRepository.findById(id);
+        if (userBuId.isPresent()) {
+            return userBuId.get();
+        } else {
+            throw new UsernameNotFoundException(String.format("User id - '%s' not found: ", id));
+        }
     }
 
     @Override
-    public List<User> listUsers() {
-        return (List<User>) userRepository.findAll();
+    public User getUserByUsername(String username) {
+        return userRepository.getUserByUsername(username);
     }
 
-    @Override
-    public User get(int id) {
-        return userRepository.findById(id).get();
-    }
 
     @Override
-    public User getByNickName(String name) {
-        return userRepository.findByNickName(name);
-    }
-
-    @Override
-    public void update(int id, User updatedUser) {
-        User user = userRepository.findById(id).get();
-        user.update(updatedUser);
-        userRepository.save(user);
-    }
-
-    @Override
-    public void delete(int id) {
-        User user = userRepository.findById(id).get();
-        userRepository.delete(user);
+    @Transactional
+    public void saveUser(User user) {
+//        user.add(new Role("ROLE_USER"));
+        user.setPassword(user.getPassword());
+        userRepository.saveAndFlush(user);
     }
 
     @Override
     @Transactional
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByNickName(username);
-        if (user == null) {
-            throw new UsernameNotFoundException(String.format("User %s not found", username));
+    public void updateUser(Long id, User user) {
+        Optional<User> userById = userRepository.findById(id);
+        if (userById.isPresent()) {
+            User userRepos = userById.get();
+            userRepos.setId(id);
+            userRepos.setUsername(user.getUsername());
+            userRepos.setPassword(new BCryptPasswordEncoder(12).encode(user.getPassword()));
+            System.out.println(user.getPassword());
+            userRepos.setSurname(user.getSurname());
+            userRepos.setEmail(user.getEmail());
+            userRepos.setAge(user.getAge());
+            userRepos.setRole(user.getRoles());
+            userRepository.save(userRepos);
+        } else {
+            throw new UsernameNotFoundException(String.format("User '%s' not found: ", user));
         }
-        return new org.springframework.security.core.userdetails.User(user.getNickName(), user.getPassword(), user.getAuthorities());
     }
+
+
+    @Override
+    @Transactional
+    public void deleteUserById(Long id) {
+        userRepository.deleteById(id);
+    }
+
+    @Override
+    public Collection<? extends GrantedAuthority> mapRolesToAuthorities(Collection<Role> roles) {
+        return roles.stream().map(r -> new SimpleGrantedAuthority(r.getRole())).collect(Collectors.toList());
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        User user = getUserByUsername(username);
+        if (user == null) {
+            throw new UsernameNotFoundException(String.format("User '%s' not found", username));
+        }
+        return new org.springframework.security.core.userdetails.User(
+                user.getUsername(), user.getPassword(), user.getAuthorities());
+    }
+
 }

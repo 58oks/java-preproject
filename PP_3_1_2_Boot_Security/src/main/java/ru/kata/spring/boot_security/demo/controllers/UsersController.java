@@ -20,31 +20,10 @@ public class UsersController {
         this.userService = userService;
     }
 
-    @GetMapping
-    public String user(Model model, Principal principal) {
-        int id = userService.getByNickName(principal.getName()).getId();
-        model.addAttribute("user", userService.get(id));
-        return "user";
-    }
-
-    @GetMapping("/edit")
-    public String edit(Model model, Principal principal) {
-        int id = userService.getByNickName(principal.getName()).getId();
-        model.addAttribute("user", userService.get(id));
-        return "edit";
-    }
-
-    @PatchMapping
-    public String update(@ModelAttribute("user") User user, Principal principal) {
-        int id = userService.getByNickName(principal.getName()).getId();
-        userService.update(id, user);
-        return "redirect:/";
-    }
-
-    @DeleteMapping
-    public String delete(Principal principal) {
-        int id = userService.getByNickName(principal.getName()).getId();
-        userService.delete(id);
-        return "redirect:/";
+    @GetMapping("")
+    public String userPage(Model model, Principal principal) {
+        User userTest = userService.getUserByUsername(principal.getName());
+        model.addAttribute("login", userTest);
+        return "userPage";
     }
 }
